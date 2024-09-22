@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "215208720325",
+    "project_id": "my-chat-a-p-p",
+    "storage_bucket": "my-chat-a-p-p.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:215208720325:android:31e652504cc9bb226d7dac",
+        "android_client_info": {
+          "package_name": "com.exoleviathan.mychat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD5PqW5ISftFTsdWudHnQ52x3RyR6UgXp4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
