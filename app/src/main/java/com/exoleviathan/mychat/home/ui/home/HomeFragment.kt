@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
@@ -24,11 +25,12 @@ class HomeFragment : Fragment() {
     private lateinit var binding: FragmentHomeBinding
     private lateinit var viewModel: HomeViewModel
 
-    private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
-        if (it) {
+    private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+        Logger.i(TAG, "requestPermissionLauncher::registerForActivityResult", "isPermissionGranted = $isGranted", ModuleNames.HOME.value)
 
-        } else {
-
+        if (isGranted.not()) {
+            Toast.makeText(requireContext(), "Notification permission is not granted.", Toast.LENGTH_LONG).show()
+            requireActivity().finish()
         }
     }
 
@@ -68,17 +70,18 @@ class HomeFragment : Fragment() {
         super.onResume()
         Logger.d(TAG, "onResume", moduleName = ModuleNames.HOME.value)
 
+        askNotificationPermission()
         (requireActivity() as? HomeActivity)?.customizeToolbar(resources.getString(R.string.app_name), false)
         viewModel.addOngoingConversationListener()
     }
 
     private fun askNotificationPermission() {
+        Logger.d(TAG, "askNotificationPermission", moduleName = ModuleNames.HOME.value)
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
-
-            } else if (shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
-
-            } else {
+            Logger.i(TAG, "askNotificationPermission", "phone SDK is >= 33", ModuleNames.HOME.value)
+            if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                Logger.i(TAG, "askNotificationPermission", "permission not granted", ModuleNames.HOME.value)
                 requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
