@@ -11,6 +11,9 @@ const val AUTH_FRAGMENT_NAME = "auth_fragment_name"
 const val MESSAGE_RECEIVER_NAME = "message_receiver_title"
 const val MESSAGE_RECEIVER_UID = "message_receiver_uid"
 
+const val FCM_MESSAGE_PREFERENCE_ID = "fcm_message_pref"
+const val FCM_TOKEN_KEY = "fcm_token_key"
+
 enum class ModuleNames(val value: String) {
     AUTH("[AUTH]"),
     HOME("[HOME]"),

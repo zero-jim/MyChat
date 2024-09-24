@@ -75,7 +75,7 @@ class MessageActivity : AppCompatActivity() {
         binding.sendButton.setOnClickListener {
             isSendButtonEnabled(false)
 
-            viewModel.sendMessage(receiverUid, receiverName, binding.messageTextField.text.toString()) { isSuccess, message ->
+            viewModel.sendMessage(this, receiverUid, receiverName, binding.messageTextField.text.toString()) { isSuccess, message ->
                 if (isSuccess) {
                     binding.messageTextField.text.clear()
                     hideKeyboard(this)

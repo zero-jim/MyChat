@@ -52,6 +52,11 @@ android {
         viewBinding true
         dataBinding true
     }
+
+    packagingOptions {
+        exclude 'META-INF/INDEX.LIST'
+        exclude 'META-INF/DEPENDENCIES'
+    }
 }
 
 dependencies {
@@ -63,9 +68,12 @@ dependencies {
     implementation 'androidx.core:core-ktx:1.13.1'
     implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.6'
     implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.8.6'
+    implementation 'androidx.navigation:navigation-fragment-ktx:2.8.1'
+    implementation 'androidx.navigation:navigation-ui-ktx:2.8.1'
 
     // google libraries
     implementation 'com.google.android.material:material:1.12.0'
+    implementation 'com.google.auth:google-auth-library-oauth2-http:0.26.0'
 
     // firebase libraries
     implementation platform('com.google.firebase:firebase-bom:33.3.0')
@@ -76,8 +84,11 @@ dependencies {
     implementation 'com.google.firebase:firebase-storage-ktx'
     implementation 'com.google.firebase:firebase-crashlytics-ktx'
     implementation 'com.google.firebase:firebase-database-ktx'
-    implementation 'androidx.navigation:navigation-fragment-ktx:2.8.1'
-    implementation 'androidx.navigation:navigation-ui-ktx:2.8.1'
+
+    // third party libraries
+    implementation 'com.squareup.retrofit2:retrofit:2.11.0'
+    implementation 'com.squareup.retrofit2:converter-gson:2.11.0'
+    implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'
 
     // unit test dependencies
     testImplementation 'junit:junit:4.13.2'

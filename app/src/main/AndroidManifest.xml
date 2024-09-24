@@ -45,7 +45,7 @@
         </activity>
 
         <service
-            android:name=".firebase.message.FirebaseMessageService"
+            android:name=".firebase.fcm.FCMNotificationService"
             android:exported="false">
 
             <intent-filter>
