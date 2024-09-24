@@ -1,14 +1,20 @@
 package com.exoleviathan.mychat.home.viewmodel
 
+import android.content.Context
 import android.text.TextUtils
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.exoleviathan.mychat.firebase.auth.FirebaseAuthenticationHelper
 import com.exoleviathan.mychat.firebase.firestore.FirebaseFirestoreHelper
 import com.exoleviathan.mychat.firebase.model.ChatRoomData
+import com.exoleviathan.mychat.utility.FCM_MESSAGE_PREFERENCE_ID
+import com.exoleviathan.mychat.utility.FCM_TOKEN_KEY
 import com.exoleviathan.mychat.utility.Logger
 import com.exoleviathan.mychat.utility.ModuleNames
+import com.exoleviathan.mychat.utility.SharedPreferenceHelper
+import kotlinx.coroutines.launch
 
 class HomeViewModel : ViewModel() {
     private val currentUserId = FirebaseAuthenticationHelper.getInstance()?.getUserInformation()?.uid
@@ -16,6 +22,25 @@ class HomeViewModel : ViewModel() {
     private val _ongoingConversations = MutableLiveData<ArrayList<ChatRoomData>>()
 
     val ongoingConversations: LiveData<ArrayList<ChatRoomData>> = _ongoingConversations
+
+    fun initialize(context: Context) {
+        viewModelScope.launch {
+            val userId = FirebaseAuthenticationHelper.getInstance()?.getFirebaseAuth()?.uid
+
+            userId?.let {
+                FirebaseFirestoreHelper.getInstance()
+                    ?.getFCMToken(userId) { token ->
+                        if (token == null) {
+                            val serverToken = SharedPreferenceHelper(context, FCM_MESSAGE_PREFERENCE_ID).getItem(FCM_TOKEN_KEY, "")
+                            FirebaseFirestoreHelper.getInstance()
+                                ?.saveSaveFCMToken(userId, serverToken) {
+
+                                }
+                        }
+                    }
+            }
+        }
+    }
 
     fun addOngoingConversationListener() {
         Logger.d(TAG, "addOngoingConversationListener", moduleName = ModuleNames.HOME.value)

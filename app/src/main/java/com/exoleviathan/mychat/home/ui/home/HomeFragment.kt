@@ -39,6 +39,7 @@ class HomeFragment : Fragment() {
         Logger.d(TAG, "onCreate", moduleName = ModuleNames.HOME.value)
 
         viewModel = ViewModelProvider(this)[HomeViewModel::class.java]
+        viewModel.initialize(requireContext())
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {

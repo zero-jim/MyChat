@@ -4,6 +4,7 @@ import android.text.TextUtils
 import com.exoleviathan.mychat.firebase.auth.FirebaseAuthenticationHelper
 import com.exoleviathan.mychat.firebase.model.ChatRoomData
 import com.exoleviathan.mychat.firebase.model.ChatRoomDataFields
+import com.exoleviathan.mychat.firebase.model.FCMTokenDataFields
 import com.exoleviathan.mychat.firebase.model.FirestoreCollections
 import com.exoleviathan.mychat.firebase.model.MessageData
 import com.exoleviathan.mychat.firebase.model.MessageDataFields
@@ -31,6 +32,37 @@ class FirebaseFirestoreHelper {
 
     private fun initialize() {
         firestore = Firebase.firestore
+    }
+
+    fun getFCMToken(userId: String, token: (String?) -> Unit) {
+        val collection = firestore?.collection(FirestoreCollections.FCM_TOKEN.collectionName)
+        collection?.whereEqualTo(FCMTokenDataFields.USER_ID.fieldName, userId)
+            ?.get()
+            ?.addOnSuccessListener {
+                var serverToken: String? = null
+                if (it.documents.size > 0) {
+                    serverToken = it.documents[0].data?.get(FCMTokenDataFields.TOKEN.fieldName) as? String
+                }
+                token.invoke(serverToken)
+            }?.addOnFailureListener {
+                token.invoke(null)
+            }
+    }
+
+    fun saveSaveFCMToken(userId: String, token: String, isTokenSaved: (Boolean) -> Unit) {
+        val fcmToken = hashMapOf(
+            Pair(FCMTokenDataFields.USER_ID.fieldName, userId),
+            Pair(FCMTokenDataFields.TOKEN.fieldName, token)
+        )
+
+        firestore?.collection(FirestoreCollections.FCM_TOKEN.collectionName)
+            ?.document(userId)
+            ?.set(fcmToken)
+            ?.addOnSuccessListener {
+                isTokenSaved.invoke(true)
+            }?.addOnFailureListener {
+                isTokenSaved.invoke(false)
+            }
     }
 
     fun isUserProfileAlreadyCreated(uid: String, isUserProfileCreated: (Boolean) -> Unit) {

@@ -1,5 +1,8 @@
 package com.exoleviathan.mychat.firebase.fcm
 
+import android.widget.Toast
+import com.exoleviathan.mychat.firebase.auth.FirebaseAuthenticationHelper
+import com.exoleviathan.mychat.firebase.firestore.FirebaseFirestoreHelper
 import com.exoleviathan.mychat.utility.FCM_MESSAGE_PREFERENCE_ID
 import com.exoleviathan.mychat.utility.FCM_TOKEN_KEY
 import com.exoleviathan.mychat.utility.Logger
@@ -7,6 +10,9 @@ import com.exoleviathan.mychat.utility.ModuleNames
 import com.exoleviathan.mychat.utility.SharedPreferenceHelper
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class FCMNotificationService: FirebaseMessagingService() {
     private lateinit var preferenceHelper: SharedPreferenceHelper
@@ -22,6 +28,18 @@ class FCMNotificationService: FirebaseMessagingService() {
 
         preferenceHelper = SharedPreferenceHelper(this, FCM_MESSAGE_PREFERENCE_ID)
         preferenceHelper.putItem(FCM_TOKEN_KEY, token)
+
+        CoroutineScope(Dispatchers.IO).launch {
+            val userId = FirebaseAuthenticationHelper.getInstance()?.getFirebaseAuth()?.uid
+            userId?.let {
+                FirebaseFirestoreHelper.getInstance()
+                    ?.saveSaveFCMToken(userId, token) {
+                        if (it) {
+                            Toast.makeText(applicationContext, "Failed to save token.", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+            }
+        }
     }
 
     override fun onMessageReceived(message: RemoteMessage) {

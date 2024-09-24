@@ -8,7 +8,7 @@ plugins {
 
 ext {
     projectCompileSDK = 34
-    projectMinimumSupportSDK = 26
+    projectMinimumSupportSDK = 23
     projectTargetSDK = 34
 
     projectVersionCode = 1
