@@ -15,6 +15,16 @@ class FirebaseStorageHelper private constructor() : FirebaseStorageApi {
         storage = Firebase.storage
     }
 
+    override fun getStorage(): FirebaseStorage {
+        Logger.d(TAG, "getStorage", moduleName = ModuleNames.FIREBASE_API.value)
+
+        return storage ?: run {
+            Firebase.storage.also {
+                storage = it
+            }
+        }
+    }
+
     companion object {
         private const val TAG = "FirebaseStorageHelper"
 
