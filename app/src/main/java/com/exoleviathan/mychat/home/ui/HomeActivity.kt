@@ -6,10 +6,11 @@ import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.exoleviathan.mychat.MainActivity
 import com.exoleviathan.mychat.R
+import com.exoleviathan.mychat.common.CommonAlertDialog
+import com.exoleviathan.mychat.common.MyChatActivity
 import com.exoleviathan.mychat.databinding.ActivityHomeBinding
 import com.exoleviathan.mychat.firebase.auth.FirebaseAuthHelper
 import com.exoleviathan.mychat.firebase.firestore.FirebaseFirestoreHelper
@@ -23,11 +24,13 @@ import com.exoleviathan.mychat.utility.ModuleNames
 import com.exoleviathan.mychat.utility.NavigationHelper
 import com.exoleviathan.mychat.utility.SharedPreferenceHelper
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class HomeActivity : AppCompatActivity() {
+class HomeActivity : MyChatActivity() {
     private lateinit var context: Context
     private lateinit var binding: ActivityHomeBinding
+    private lateinit var networkAlertDialog: CommonAlertDialog
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,36 +40,26 @@ class HomeActivity : AppCompatActivity() {
         binding = ActivityHomeBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        setupToolbar()
+        networkAlertDialog = CommonAlertDialog(this)
+
+        handleGetUserAuthInformation()
+
         supportFragmentManager.beginTransaction()
             .replace(binding.containerHome.id, HomeFragment())
             .commitNow()
+    }
 
+    private fun setupToolbar() {
         setSupportActionBar(binding.appBarHome.toolbarHome)
         supportActionBar?.title = ""
     }
 
-    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
-        Logger.d(TAG, "onCreateOptionsMenu", moduleName = ModuleNames.HOME.value)
-
-        menuInflater.inflate(R.menu.home_menu, menu)
-        return true
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        Logger.d(TAG, "onOptionsItemSelected", "item: ${item.itemId}", ModuleNames.HOME.value)
-
-        // TODO: create settings activity and navigate to settings activity
-        return super.onOptionsItemSelected(item)
-    }
-
-    override fun onResume() {
-        super.onResume()
-        Logger.d(TAG, "onResume", moduleName = ModuleNames.HOME.value)
-
+    private fun handleGetUserAuthInformation() {
         lifecycleScope.launch(Dispatchers.IO) {
 
             FirebaseAuthHelper.getInstance().getUserAuthInformation { userAuthData ->
-                Logger.d(TAG, "onResume", "userAuthData: $userAuthData", ModuleNames.HOME.value)
+                Logger.d(TAG, "onStart", "userAuthData: $userAuthData", ModuleNames.HOME.value)
 
                 userAuthData?.let {
                     getUserProfileInformation(it)
@@ -134,6 +127,46 @@ class HomeActivity : AppCompatActivity() {
 
             FirebaseFirestoreHelper.getInstance().saveFCMToken(userId, serverToken) { task ->
                 Logger.i(TAG, "saveFCMTokenToServer", "response: ${task.isSuccessful}")
+            }
+        }
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        Logger.d(TAG, "onCreateOptionsMenu", moduleName = ModuleNames.HOME.value)
+
+        menuInflater.inflate(R.menu.home_menu, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        Logger.d(TAG, "onOptionsItemSelected", "item: ${item.itemId}", ModuleNames.HOME.value)
+
+        // TODO: create settings activity and navigate to settings activity
+        return super.onOptionsItemSelected(item)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        Logger.d(TAG, "onStart", moduleName = ModuleNames.HOME.value)
+
+        observePhoneNetworkStates()
+    }
+
+    private fun observePhoneNetworkStates() {
+        Logger.d(TAG, "observePhoneNetworkStates", moduleName = ModuleNames.HOME.value)
+
+        lifecycleScope.launch {
+
+            networkState.asStateFlow().collect {
+                Logger.i(TAG, "observePhoneNetworkStates", "currentState: $it", ModuleNames.HOME.value)
+
+                if (it.not()) {
+                    networkAlertDialog.showAlertDialogue("Network not available", "Please enable internet connection to continue using this app.", false) {
+                        finish()
+                    }
+                } else {
+                    networkAlertDialog.dismissAlert()
+                }
             }
         }
     }

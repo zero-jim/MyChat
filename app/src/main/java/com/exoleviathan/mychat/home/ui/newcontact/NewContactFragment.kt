@@ -56,6 +56,10 @@ class NewContactFragment : Fragment() {
         handleNewContactData()
         addNewContactButtonAction()
         addUserButtonAction()
+
+        lifecycleScope.launch {
+            viewModel.newContactIntent.send(NewContactIntent.FetchUserAuthData)
+        }
     }
 
     private fun handleNewContactStates() {
@@ -147,18 +151,9 @@ class NewContactFragment : Fragment() {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        Logger.d(TAG, "onResume", moduleName = ModuleNames.HOME.value)
-
-        lifecycleScope.launch {
-            viewModel.newContactIntent.send(NewContactIntent.FetchUserAuthData)
-        }
-    }
-
-    override fun onPause() {
-        super.onPause()
-        Logger.d(TAG, "onPause", moduleName = ModuleNames.HOME.value)
+    override fun onDestroyView() {
+        super.onDestroyView()
+        Logger.d(TAG, "onDestroyView", moduleName = ModuleNames.HOME.value)
 
         lifecycleScope.launch {
             viewModel.newContactIntent.send(NewContactIntent.RemoveContactListListener)

@@ -28,6 +28,7 @@ class CommonAlertDialog(private val context: Context) {
             alertDialog?.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
             alertDialog?.setView(view)
             alertDialog?.setCancelable(false)
+            alertDialog?.show()
         }
     }
 

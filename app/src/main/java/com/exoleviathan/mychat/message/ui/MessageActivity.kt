@@ -4,11 +4,12 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.exoleviathan.mychat.MainActivity
+import com.exoleviathan.mychat.common.CommonAlertDialog
+import com.exoleviathan.mychat.common.MyChatActivity
 import com.exoleviathan.mychat.databinding.ActivityMessageBinding
 import com.exoleviathan.mychat.firebase.auth.FirebaseAuthHelper
 import com.exoleviathan.mychat.message.model.MessageIntent
@@ -23,14 +24,14 @@ import com.exoleviathan.mychat.utility.showKeyboard
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class MessageActivity : AppCompatActivity() {
+class MessageActivity : MyChatActivity() {
     private lateinit var receiverId: String
     private lateinit var receiverName: String
 
     private lateinit var binding: ActivityMessageBinding
     private lateinit var viewModel: MessageViewModel
-
     private lateinit var messageAdapter: MessageAdapter
+    private lateinit var networkAlertDialog: CommonAlertDialog
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,6 +43,8 @@ class MessageActivity : AppCompatActivity() {
         binding.lifecycleOwner = this
         binding.viewModel = viewModel
         setContentView(binding.root)
+
+        networkAlertDialog = CommonAlertDialog(this)
 
         getIntentDataAndSetUpSupportActionBar()
     }
@@ -69,6 +72,11 @@ class MessageActivity : AppCompatActivity() {
 
         sendButtonClickAction()
         handleMessageStates()
+        observePhoneNetworkStates()
+
+        lifecycleScope.launch {
+            viewModel.messageIntent.send(MessageIntent.AddMessageUpdateListener(receiverId))
+        }
     }
 
     private fun sendButtonClickAction() {
@@ -170,12 +178,22 @@ class MessageActivity : AppCompatActivity() {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        Logger.d(TAG, "onResume", moduleName = ModuleNames.MESSAGE.value)
+    private fun observePhoneNetworkStates() {
+        Logger.d(TAG, "observePhoneNetworkStates", moduleName = ModuleNames.MESSAGE.value)
 
         lifecycleScope.launch {
-            viewModel.messageIntent.send(MessageIntent.AddMessageUpdateListener(receiverId))
+
+            networkState.asStateFlow().collect {
+                Logger.i(TAG, "observePhoneNetworkStates", "currentState: $it", ModuleNames.MESSAGE.value)
+
+                if (it.not()) {
+                    networkAlertDialog.showAlertDialogue("Network not available", "Please enable internet connection to continue using this app.", false) {
+                        finish()
+                    }
+                } else {
+                    networkAlertDialog.dismissAlert()
+                }
+            }
         }
     }
 
@@ -185,9 +203,9 @@ class MessageActivity : AppCompatActivity() {
         binding.messageRecyclerView.layoutManager?.scrollToPosition( 0)
     }
 
-    override fun onPause() {
-        super.onPause()
-        Logger.d(TAG, "onPause", moduleName = ModuleNames.MESSAGE.value)
+    override fun onStop() {
+        super.onStop()
+        Logger.d(TAG, "onStop", moduleName = ModuleNames.MESSAGE.value)
 
         lifecycleScope.launch {
             viewModel.messageIntent.send(MessageIntent.RemoveMessageUpdateListener)
