@@ -11,5 +11,5 @@ import retrofit2.http.POST
 interface FcmApi {
     @Headers("Content-Type:application/json")
     @POST("v1/projects/my-chat-a-p-p/messages:send")
-    fun sendNotificationMessage(@Header("Authorization") authCredential: String?, @Body reqBody: RequestBody?): Call<ResponseBody>?
+    fun sendNotification(@Header("Authorization") authCredential: String?, @Body reqBody: RequestBody?): Call<ResponseBody>?
 }

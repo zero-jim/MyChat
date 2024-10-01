@@ -8,17 +8,19 @@ import java.util.Date
 import java.util.Locale
 
 const val AUTH_FRAGMENT_NAME = "auth_fragment_name"
-const val MESSAGE_RECEIVER_NAME = "message_receiver_title"
+
 const val MESSAGE_RECEIVER_UID = "message_receiver_uid"
+const val MESSAGE_RECEIVER_NAME = "message_receiver_title"
 
 const val FCM_MESSAGE_PREFERENCE_ID = "fcm_message_pref"
 const val FCM_TOKEN_KEY = "fcm_token_key"
+const val FCM_TOKEN_UPDATED_KEY = "fcm_token_updated"
 
 enum class ModuleNames(val value: String) {
+    FIREBASE_API("[FIREBASE_API]"),
     AUTH("[AUTH]"),
     HOME("[HOME]"),
-    MESSAGE("[MESSAGE]"),
-    FIREBASE_API("[FIREBASE_API]")
+    MESSAGE("[MESSAGE]")
 }
 
 fun hideKeyboard(activity: Activity) {

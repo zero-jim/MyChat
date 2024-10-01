@@ -10,22 +10,19 @@ import com.exoleviathan.mychat.message.model.MessageViewHolders
 import com.exoleviathan.mychat.message.ui.viewholder.MessageViewHolder
 import com.exoleviathan.mychat.message.ui.viewholder.OtherMessageViewHolder
 import com.exoleviathan.mychat.message.ui.viewholder.SelfMessageViewHolder
-import com.exoleviathan.mychat.message.viewmodel.MessageViewModel
 import com.exoleviathan.mychat.utility.Logger
 import com.exoleviathan.mychat.utility.ModuleNames
 
 @SuppressLint("NotifyDataSetChanged")
-class MessageAdapter(viewModel: MessageViewModel) : RecyclerView.Adapter<MessageViewHolder>() {
-    private var items = arrayListOf<MessageData>()
+class MessageAdapter(private val viewModel: MessageViewModel) : RecyclerView.Adapter<MessageViewHolder>() {
+    private var items = arrayListOf<MessageData?>()
 
-    init {
-        viewModel.messageData.observeForever {
-            Logger.i(TAG, "init", "current item size: ${it.size}", ModuleNames.MESSAGE.value)
+    fun updateDataItems(data: List<MessageData?>) {
+        Logger.i(TAG, "updateDataItems", "item size: ${data.size}", ModuleNames.MESSAGE.value)
 
-            items = arrayListOf()
-            items.addAll(it)
-            notifyDataSetChanged()
-        }
+        items.clear()
+        items.addAll(data)
+        notifyDataSetChanged()
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MessageViewHolder {
@@ -54,7 +51,7 @@ class MessageAdapter(viewModel: MessageViewModel) : RecyclerView.Adapter<Message
     }
 
     override fun getItemViewType(position: Int): Int {
-        return items[position].messageType
+        return viewModel.getMessageItemViewType(items[position])
     }
 
     companion object {

@@ -5,11 +5,11 @@
 
     <data>
 
-        <import type="com.exoleviathan.mychat.home.viewmodel.HomeViewModel" />
+        <import type="com.exoleviathan.mychat.home.ui.home.HomeViewModel" />
 
         <variable
             name="viewModel"
-            type="HomeViewModel" />
+            type="com.exoleviathan.mychat.home.ui.home.HomeViewModel" />
 
     </data>
 

@@ -5,18 +5,18 @@
 
     <data>
 
-        <import type="com.exoleviathan.mychat.auth.viewmodel.UserRegistrationViewModel" />
+        <import type="com.exoleviathan.mychat.auth.ui.registration.UserRegistrationViewModel" />
 
         <variable
             name="viewModel"
-            type="UserRegistrationViewModel" />
+            type="com.exoleviathan.mychat.auth.ui.registration.UserRegistrationViewModel" />
 
     </data>
 
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        tools:context=".auth.ui.UserRegistrationFragment">
+        tools:context=".auth.ui.registration.UserRegistrationFragment">
 
         <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/container_view"

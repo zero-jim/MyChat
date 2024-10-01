@@ -5,11 +5,11 @@
 
     <data>
 
-        <import type="com.exoleviathan.mychat.home.viewmodel.NewContactViewModel" />
+        <import type="com.exoleviathan.mychat.home.ui.newcontact.NewContactViewModel" />
 
         <variable
             name="viewModel"
-            type="NewContactViewModel" />
+            type="com.exoleviathan.mychat.home.ui.newcontact.NewContactViewModel" />
 
     </data>
 

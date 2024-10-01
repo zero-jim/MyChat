@@ -9,14 +9,37 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.RecyclerView.ViewHolder
 import com.exoleviathan.mychat.R
-import com.exoleviathan.mychat.home.viewmodel.NewContactViewModel
+import com.exoleviathan.mychat.home.model.newcontact.NewContactData
 import com.exoleviathan.mychat.message.ui.MessageActivity
 import com.exoleviathan.mychat.utility.MESSAGE_RECEIVER_NAME
 import com.exoleviathan.mychat.utility.MESSAGE_RECEIVER_UID
 import com.exoleviathan.mychat.utility.NavigationHelper
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @SuppressLint("NotifyDataSetChanged")
 class ContactsListAdapter(private val viewModel: NewContactViewModel) : RecyclerView.Adapter<ViewHolder>() {
+    private val items = arrayListOf<Pair<String?, String?>>()
+
+    init {
+        CoroutineScope(Dispatchers.Main).launch {
+
+            viewModel.newContactData.collect { data ->
+                when (data) {
+                    NewContactData.Initial -> {
+                        items.clear()
+                        notifyDataSetChanged()
+                    }
+
+                    is NewContactData.Contact -> {
+                        items.add(data.info)
+                        notifyItemInserted(items.size - 1)
+                    }
+                }
+            }
+        }
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val layoutInflater = parent.context.getSystemService(LayoutInflater::class.java)
@@ -25,11 +48,11 @@ class ContactsListAdapter(private val viewModel: NewContactViewModel) : Recycler
     }
 
     override fun getItemCount(): Int {
-        return viewModel.updatedFriendList.value?.size ?: 0
+        return items.size
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        (holder as? ContactsListViewHolder)?.bind(viewModel.updatedFriendList.value?.get(position), position)
+        (holder as? ContactsListViewHolder)?.bind(items[position], position)
     }
 
     internal inner class ContactsListViewHolder(private val view: View) : ViewHolder(view) {

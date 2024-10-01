@@ -1,57 +1,68 @@
 package com.exoleviathan.mychat
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.exoleviathan.mychat.auth.models.AuthFragmentNames
 import com.exoleviathan.mychat.auth.ui.AuthenticationActivity
 import com.exoleviathan.mychat.databinding.ActivityMainBinding
-import com.exoleviathan.mychat.firebase.auth.FirebaseAuthenticationHelper
+import com.exoleviathan.mychat.firebase.auth.FirebaseAuthHelper
 import com.exoleviathan.mychat.home.ui.HomeActivity
 import com.exoleviathan.mychat.utility.AUTH_FRAGMENT_NAME
 import com.exoleviathan.mychat.utility.Logger
 import com.exoleviathan.mychat.utility.NavigationHelper
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
+    private lateinit var context: Context
     private lateinit var binding: ActivityMainBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Logger.i(TAG, "onCreate")
+        Logger.d(TAG, "onCreate")
 
+        context = this
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        navigateToActivityBasedOnUserInfo()
+        lifecycleScope.launch(Dispatchers.IO) {
+            navigateToLandingActivity()
+        }
     }
 
-    private fun navigateToActivityBasedOnUserInfo() {
-        Logger.i(TAG, "navigateToActivityBasedOnUserInfo")
+    private suspend fun navigateToLandingActivity() {
+        Logger.i(TAG, "navigateToLandingActivity")
 
-        FirebaseAuthenticationHelper.getInstance()?.getUserInformation()?.let {
-            Logger.d(TAG, "navigateToActivityBasedOnUserInfo", "userData: $it")
+        FirebaseAuthHelper.getInstance().getUserAuthInformation { authData ->
+            Logger.d(TAG, "navigateToLandingActivity", "authData: $authData")
 
-            if (it.isEmailVerified == true) {
-                Logger.i(TAG, "navigateToActivityBasedOnUserInfo", "user email is verified")
-
-                val intent = Intent(this, HomeActivity::class.java)
-                NavigationHelper.navigateToActivity(this, intent)
-                finish()
+            if (authData == null) {
+                Logger.i(TAG, "navigateToLandingActivity", "user information is not available")
+                lifecycleScope.launch {
+                    val intent = Intent(context, AuthenticationActivity::class.java)
+                    intent.putExtra(AUTH_FRAGMENT_NAME, AuthFragmentNames.LOGIN.fragment)
+                    NavigationHelper.navigateToActivity(context, intent)
+                    finish()
+                }
+            } else if (authData.isEmailVerified) {
+                Logger.i(TAG, "navigateToLandingActivity", "user email is already verified")
+                lifecycleScope.launch {
+                    val intent = Intent(context, HomeActivity::class.java)
+                    NavigationHelper.navigateToActivity(context, intent)
+                    finish()
+                }
             } else {
-                Logger.i(TAG, "navigateToActivityBasedOnUserInfo", "user email is not verified")
-
-                val intent = Intent(this, AuthenticationActivity::class.java)
-                intent.putExtra(AUTH_FRAGMENT_NAME, AuthFragmentNames.EMAIL_VERIFICATION.fragment)
-                NavigationHelper.navigateToActivity(this, intent)
-                finish()
+                Logger.i(TAG, "navigateToLandingActivity", "user email is not yet verified")
+                lifecycleScope.launch {
+                    val intent = Intent(context, AuthenticationActivity::class.java)
+                    intent.putExtra(AUTH_FRAGMENT_NAME, AuthFragmentNames.EMAIL_VERIFICATION.fragment)
+                    NavigationHelper.navigateToActivity(context, intent)
+                    finish()
+                }
             }
-        } ?: run {
-            Logger.i(TAG, "navigateToActivityBasedOnUserInfo", "user information is not available")
-
-            val intent = Intent(this, AuthenticationActivity::class.java)
-            intent.putExtra(AUTH_FRAGMENT_NAME, AuthFragmentNames.LOGIN.fragment)
-            NavigationHelper.navigateToActivity(this, intent)
-            finish()
         }
     }
 

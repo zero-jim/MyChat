@@ -5,18 +5,18 @@
 
     <data>
 
-        <import type="com.exoleviathan.mychat.auth.viewmodel.UserLoginViewModel" />
+        <import type="com.exoleviathan.mychat.auth.ui.login.UserLoginViewModel" />
 
         <variable
             name="viewModel"
-            type="UserLoginViewModel" />
+            type="com.exoleviathan.mychat.auth.ui.login.UserLoginViewModel" />
 
     </data>
 
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        tools:context=".auth.ui.UserLoginFragment">
+        tools:context=".auth.ui.login.UserLoginFragment">
 
         <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/container_view"

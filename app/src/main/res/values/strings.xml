@@ -16,6 +16,7 @@
     <string name="confirm_your_password">Confirm your password</string>
     <string name="choose_a_password">Choose a password</string>
     <string name="okay">Okay</string>
+    <string name="failed_to_send_authentication_email_try_again">Failed to send authentication email to your email address, try again.</string>
     <string name="an_authentication_email_has_been_sent_to_your_email_address">An authentication email has been sent to your email address.\nPlease follow the link in your email to verify that it\'s your email account.</string>
     <string name="continue_">Continue</string>
     <string name="after_verifying_using_the_link">After verifying using the link, please press the continue button to continue using this app.</string>

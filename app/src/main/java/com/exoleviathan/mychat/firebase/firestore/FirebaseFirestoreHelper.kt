@@ -1,375 +1,253 @@
 package com.exoleviathan.mychat.firebase.firestore
 
-import android.text.TextUtils
-import com.exoleviathan.mychat.firebase.auth.FirebaseAuthenticationHelper
+import com.exoleviathan.mychat.firebase.firestore.fields.ChatRoomDataFields
+import com.exoleviathan.mychat.firebase.firestore.fields.FCMTokenDataFields
+import com.exoleviathan.mychat.firebase.firestore.fields.FirestoreCollections
+import com.exoleviathan.mychat.firebase.firestore.fields.MessageDataFields
+import com.exoleviathan.mychat.firebase.firestore.fields.UserProfileInfoDataFields
 import com.exoleviathan.mychat.firebase.model.ChatRoomData
-import com.exoleviathan.mychat.firebase.model.ChatRoomDataFields
-import com.exoleviathan.mychat.firebase.model.FCMTokenDataFields
-import com.exoleviathan.mychat.firebase.model.FirestoreCollections
 import com.exoleviathan.mychat.firebase.model.MessageData
-import com.exoleviathan.mychat.firebase.model.MessageDataFields
-import com.exoleviathan.mychat.firebase.model.UserData
-import com.exoleviathan.mychat.firebase.model.UserDataFields
-import com.exoleviathan.mychat.message.model.MessageViewHolders
+import com.exoleviathan.mychat.firebase.model.UserAuthData
 import com.exoleviathan.mychat.utility.Logger
 import com.exoleviathan.mychat.utility.ModuleNames
-import com.google.firebase.firestore.DocumentChange
+import com.google.android.gms.tasks.OnCompleteListener
+import com.google.firebase.firestore.DocumentReference
+import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.EventListener
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query.Direction
+import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentHashMap
 
-class FirebaseFirestoreHelper {
+class FirebaseFirestoreHelper private constructor() : FirebaseFirestoreApi {
     private var firestore: FirebaseFirestore? = null
-    private val friendListUpdateListenerMap = hashMapOf<String, ListenerRegistration?>()
-    private val messageListListenerMap = hashMapOf<String, ListenerRegistration?>()
-    private val chatRoomListenerMap = hashMapOf<String, ListenerRegistration?>()
+    private val friendListListenerMap = ConcurrentHashMap<String, ListenerRegistration?>()
+    private val chatRoomListenerMap = ConcurrentHashMap<String, ListenerRegistration?>()
+    private val messageListListenerMap = ConcurrentHashMap<String, ListenerRegistration?>()
 
-    private fun initialize() {
+    init {
+        Logger.d(TAG, "init", moduleName = ModuleNames.FIREBASE_API.value)
+
         firestore = Firebase.firestore
     }
 
-    fun getFCMToken(userId: String, token: (String?) -> Unit) {
-        val collection = firestore?.collection(FirestoreCollections.FCM_TOKEN.collectionName)
-        collection?.whereEqualTo(FCMTokenDataFields.USER_ID.fieldName, userId)
-            ?.get()
-            ?.addOnSuccessListener {
-                var serverToken: String? = null
-                if (it.documents.size > 0) {
-                    serverToken = it.documents[0].data?.get(FCMTokenDataFields.TOKEN.fieldName) as? String
+    @Throws(Exception::class)
+    override fun getFirestore(): FirebaseFirestore {
+        Logger.d(TAG, "getFirestore", moduleName = ModuleNames.FIREBASE_API.value)
+
+        return firestore ?: Firebase.firestore.also {
+            firestore = it
+        }
+    }
+
+    @Throws(Exception::class)
+    override suspend fun createUserProfileInformation(userAuthData: UserAuthData, listener: OnCompleteListener<Void>?) {
+        Logger.d(TAG, "createUserProfileInformation", "data: $userAuthData", ModuleNames.FIREBASE_API.value)
+
+        firestore?.collection(FirestoreCollections.USER_PROFILE.collectionName)
+            ?.document(userAuthData.uid)
+            ?.set(userAuthData)
+            ?.apply {
+                listener?.let {
+                    addOnCompleteListener(listener)
                 }
-                token.invoke(serverToken)
-            }?.addOnFailureListener {
-                token.invoke(null)
             }
     }
 
-    fun saveSaveFCMToken(userId: String, token: String, isTokenSaved: (Boolean) -> Unit) {
-        val fcmToken = hashMapOf(
+    @Throws(Exception::class)
+    override suspend fun getUserProfileInformation(query: String, queryField: String, listener: OnCompleteListener<QuerySnapshot?>?) {
+        Logger.d(TAG, "getUserProfileInformation", "query: $query queryField: $queryField", ModuleNames.FIREBASE_API.value)
+
+        val collection = firestore?.collection(FirestoreCollections.USER_PROFILE.collectionName)
+        collection?.whereEqualTo(queryField, query)
+            ?.get()
+            ?.apply {
+                listener?.let {
+                    addOnCompleteListener(it)
+                }
+            }
+    }
+
+    @Throws(Exception::class)
+    override suspend fun <T> updateUserProfileInformation(userId: String, fieldName: String, fieldValue: T, listener: OnCompleteListener<Void>) {
+        Logger.d(TAG, "updateUserProfileInformation", "userId: $userId fieldName: $fieldName fieldValue: $fieldValue", ModuleNames.FIREBASE_API.value)
+
+        firestore?.collection(FirestoreCollections.USER_PROFILE.collectionName)
+            ?.document(userId)
+            ?.apply {
+                when (fieldName) {
+                    UserProfileInfoDataFields.FRIEND_LIST.fieldName -> {
+                        update(fieldName, FieldValue.arrayUnion(fieldValue))
+                            .addOnCompleteListener(listener)
+                    }
+
+                    else -> {
+                        update(fieldName, fieldValue as? String?)
+                            .addOnCompleteListener(listener)
+                    }
+                }
+            }
+    }
+
+    @Throws(Exception::class)
+    override suspend fun addUserProfileInformationUpdateListener(userId: String, listenerName: String, listener: EventListener<DocumentSnapshot?>) {
+        Logger.d(TAG, "addUserProfileInformationUpdateListener", "userId: $userId listenerName: $listenerName", moduleName = ModuleNames.FIREBASE_API.value)
+
+        val listenerRegistration = firestore?.collection(FirestoreCollections.USER_PROFILE.collectionName)
+            ?.document(userId)
+            ?.addSnapshotListener(listener)
+
+        friendListListenerMap[listenerName] = listenerRegistration
+    }
+
+    @Throws(Exception::class)
+    override fun removeUserProfileUpdateListener(listenerName: String) {
+        Logger.d(TAG, "removeUserProfileUpdateListener", "listenerName: $listenerName", ModuleNames.FIREBASE_API.value)
+
+        friendListListenerMap[listenerName]?.remove()
+        friendListListenerMap.remove(listenerName)
+    }
+
+    @Throws(Exception::class)
+    override suspend fun saveFCMToken(userId: String, token: String, listener: OnCompleteListener<Void>?) {
+        Logger.d(TAG, "saveFCMToken", "userId: $userId token: $token", ModuleNames.FIREBASE_API.value)
+
+        val fcmTokenMap = hashMapOf(
             Pair(FCMTokenDataFields.USER_ID.fieldName, userId),
-            Pair(FCMTokenDataFields.TOKEN.fieldName, token)
+            Pair(FCMTokenDataFields.FCM_TOKEN_ID.fieldName, token)
         )
 
         firestore?.collection(FirestoreCollections.FCM_TOKEN.collectionName)
             ?.document(userId)
-            ?.set(fcmToken)
-            ?.addOnSuccessListener {
-                isTokenSaved.invoke(true)
-            }?.addOnFailureListener {
-                isTokenSaved.invoke(false)
-            }
-    }
-
-    fun isUserProfileAlreadyCreated(uid: String, isUserProfileCreated: (Boolean) -> Unit) {
-        val collection = firestore?.collection(FirestoreCollections.USER_PROFILE.collectionName)
-        val query = collection?.whereEqualTo(UserDataFields.USER_ID.fieldName, uid)
-
-        query?.get()?.addOnSuccessListener {
-            if (it.isEmpty) {
-                Logger.i(TAG, "isUserProfileAlreadyCreated", "profile is not created", ModuleNames.FIREBASE_API.value)
-                isUserProfileCreated.invoke(false)
-            } else {
-                Logger.i(TAG, "isUserProfileAlreadyCreated", "profile is already created", ModuleNames.FIREBASE_API.value)
-                isUserProfileCreated.invoke(true)
-            }
-        }?.addOnFailureListener {
-            isUserProfileAlreadyCreated(uid, isUserProfileCreated)
-        }
-    }
-
-    fun createUserProfile(data: UserData?, result: (Boolean, String, String?) -> Unit) {
-        Logger.d(TAG, "createUserProfile", "data: $data", ModuleNames.FIREBASE_API.value)
-
-        data?.let {
-            Logger.i(TAG, "createUserProfile", "user data is available", ModuleNames.FIREBASE_API.value)
-            val userProfile = hashMapOf(
-                Pair(UserDataFields.USER_ID.fieldName, it.uid),
-                Pair(UserDataFields.USER_NAME.fieldName, it.displayName),
-                Pair(UserDataFields.PROFILE_PHOTO_URL.fieldName, it.photoUrl),
-                Pair(UserDataFields.EMAIL.fieldName, it.email),
-                Pair(UserDataFields.STATUS.fieldName, it.status),
-                Pair(UserDataFields.CREATION_TIME.fieldName, FieldValue.serverTimestamp().toString()),
-                Pair(UserDataFields.FRIEND_LIST.fieldName, FieldValue.arrayUnion()),
-                Pair(UserDataFields.GROUP_LIST.fieldName, FieldValue.arrayUnion()),
-            )
-
-            firestore?.collection(FirestoreCollections.USER_PROFILE.collectionName)
-                ?.document(it.uid)
-                ?.set(userProfile)
-                ?.addOnSuccessListener {
-                    result(true, "", "")
-                }?.addOnFailureListener { exp ->
-                    result(false, "", exp.message)
+            ?.set(fcmTokenMap)
+            ?.apply {
+                listener?.let {
+                    addOnCompleteListener(it)
                 }
-        }
-    }
-
-    private fun updateUserFriendList(uid: String, fieldValue: Pair<String?, String?>, isSuccess: (Boolean) -> Unit) {
-        Logger.d(TAG, "updateUserFriendList", "uid: $uid fieldValue: $fieldValue", ModuleNames.FIREBASE_API.value)
-
-        firestore?.collection(FirestoreCollections.USER_PROFILE.collectionName)
-            ?.document(uid)
-            ?.update(UserDataFields.FRIEND_LIST.fieldName, FieldValue.arrayUnion(fieldValue))
-            ?.addOnSuccessListener {
-                Logger.i(TAG, "updateUserFriendList", "update user friend list is successful", ModuleNames.FIREBASE_API.value)
-                isSuccess.invoke(true)
-            }?.addOnFailureListener {
-                Logger.e(TAG, "updateUserFriendList", "update user friend list failed", ModuleNames.FIREBASE_API.value)
-                isSuccess.invoke(false)
             }
     }
 
-    fun addAsFriend(email: String, result: (Boolean, String) -> Unit) {
-        Logger.d(TAG, "addAsFriend", "email: $email", ModuleNames.FIREBASE_API.value)
+    @Throws(Exception::class)
+    override suspend fun getFCMToken(userId: String, listener: OnCompleteListener<DocumentSnapshot?>?) {
+        Logger.d(TAG, "getFCMToken", "userId: $userId", ModuleNames.FIREBASE_API.value)
 
-        val userInfo = FirebaseAuthenticationHelper.getInstance()?.getUserInformation()
-        userInfo?.let { data ->
-            val collection = firestore?.collection(FirestoreCollections.USER_PROFILE.collectionName)
-            val query = collection?.whereEqualTo(UserDataFields.EMAIL.fieldName, email)
-
-            query?.get()?.addOnSuccessListener {
-                if (it.isEmpty) {
-                    Logger.i(TAG, "addAsFriend", "user not found", ModuleNames.FIREBASE_API.value)
-                    result.invoke(false, "There is no such user with this email address.")
-                } else {
-                    val friendUid = it.documents[0].data?.get(UserDataFields.USER_ID.fieldName) as? String
-                    val friendName = it.documents[0].data?.get(UserDataFields.USER_NAME.fieldName) as? String
-                    val userFriendData = Pair(friendUid, friendName)
-                    Logger.i(TAG, "addAsFriend", "user found: $friendUid", ModuleNames.FIREBASE_API.value)
-
-                    if (TextUtils.equals(data.uid, friendUid)) {
-                        result.invoke(false, "This is the current user email address.")
-                        return@addOnSuccessListener
-                    }
-
-                    friendUid?.let { _ ->
-                        updateUserFriendList(data.uid, userFriendData) { res ->
-                            if (res) {
-                                result.invoke(true, "User added successfully.")
-                            } else {
-                                result.invoke(false, "Failed to add user to friend list.")
-                            }
-                        }
-                    } ?: run {
-                        Logger.e(TAG, "addAsFriend", "friend user id is null", ModuleNames.FIREBASE_API.value)
-                        result.invoke(false, "No user found for this email address.")
-                    }
-                }
-            }?.addOnFailureListener {
-                result.invoke(false, "Failed to add new user, try again.")
-            }
+        val document = firestore?.collection(FirestoreCollections.FCM_TOKEN.collectionName)
+            ?.document(userId)
+        listener?.let {
+            document?.get()?.addOnCompleteListener(it)
         } ?: run {
-            Logger.i(TAG, "addAsFriend", "user information is not available", ModuleNames.FIREBASE_API.value)
-            result.invoke(false, "Current user information is not available.")
+            document?.get()
         }
     }
 
-    fun addFriendListUpdateListener(uid: String, listenerName: String, result: (ArrayList<Pair<String, String>>) -> Unit) {
-        Logger.i(TAG, "addFriendListUpdateListener", moduleName = ModuleNames.FIREBASE_API.value)
-        val listener = firestore?.collection(FirestoreCollections.USER_PROFILE.collectionName)
-            ?.document(uid)
-            ?.addSnapshotListener { value, _ ->
-                val ret: ArrayList<Pair<String, String>> = arrayListOf()
-                val friends = value?.data?.get(UserDataFields.FRIEND_LIST.fieldName) as? ArrayList<*>
-                Logger.i(TAG, "addFriendListUpdateListener", "friend: $friends", ModuleNames.FIREBASE_API.value)
-
-                friends?.forEach {  friend ->
-                    val friendUid = (friend as? HashMap<*, *>)?.get("first") as? String
-                    val friendName = (friend as? HashMap<*, *>)?.get("second") as? String
-                    Logger.i(TAG, "addFriendListUpdateListener", "friendName: $friendName", ModuleNames.FIREBASE_API.value)
-
-                    friendName?.let { name ->
-                        friendUid?.let { uid ->
-                            ret.add(Pair(uid, name))
-                        }
-                    }
-                }
-
-                result.invoke(ret)
-            }
-
-        friendListUpdateListenerMap[listenerName] = listener
-    }
-
-    fun removeFriendListUpdateListener(listenerName: String) {
-        friendListUpdateListenerMap[listenerName]?.remove()
-        friendListUpdateListenerMap.remove(listenerName)
-    }
-
-    private fun updateReadStatus(chatRoomId: String) {
-        Logger.i(TAG, "updateReadStatus", "chatRoomId: $chatRoomId", ModuleNames.FIREBASE_API.value)
+    @Throws(Exception::class)
+    override suspend fun setChatRoomData(chatRoomData: ChatRoomData, listener: OnCompleteListener<Void>) {
+        Logger.d(TAG, "setChatRoomData", "chatRoomData: $chatRoomData", ModuleNames.FIREBASE_API.value)
 
         firestore?.collection(FirestoreCollections.CHAT_ROOMS.collectionName)
-            ?.document(chatRoomId)
-            ?.update(ChatRoomDataFields.READ_STATUS.fieldName, true)
+            ?.document(chatRoomData.chatRoomId)
+            ?.set(chatRoomData)
+            ?.addOnCompleteListener(listener)
     }
 
-    fun sendMessage(senderId: String, senderName: String, receiverId: String, receiverName: String, message: String, isSuccess: (Boolean, String) -> Unit) {
-        val chatRoomId = arrayOf(senderId, receiverId).sortedArray().joinToString(separator = "_")
-        Logger.i(TAG, "sendMessage", "chatRoomId: $chatRoomId", ModuleNames.FIREBASE_API.value)
+    @Throws(Exception::class)
+    @Suppress("UNCHECKED_CAST")
+    override suspend fun updateChatRoomReadStatus(chatRoomId: String, userId: String, status: Boolean, listener: OnCompleteListener<Void>?) {
+        Logger.d(TAG, "updateReadStatus", "chatRoomId: $chatRoomId userId: $userId", ModuleNames.FIREBASE_API.value)
 
-        FirebaseAuthenticationHelper.getInstance()?.getUserInformation()?.let { userData ->
-            userData.displayName?.let { name ->
-                val data = hashMapOf(
-                    Pair(ChatRoomDataFields.PARTICIPANT_NAMES.fieldName, listOf(senderName, receiverName).sorted()),
-                    Pair(ChatRoomDataFields.PARTICIPANT_LIST.fieldName, listOf(senderId, receiverId).sorted()),
-                    Pair(ChatRoomDataFields.LAST_MESSAGE.fieldName, message),
-                    Pair(ChatRoomDataFields.LAST_MESSAGE_SENDER.fieldName, name),
-                    Pair(ChatRoomDataFields.TIMESTAMP.fieldName, FieldValue.serverTimestamp()),
-                    Pair(ChatRoomDataFields.READ_STATUS.fieldName, false)
-                )
+        val collection = firestore?.collection(FirestoreCollections.CHAT_ROOMS.collectionName)
+        collection?.whereEqualTo(ChatRoomDataFields.CHAT_ROOM_ID.fieldName, chatRoomId)
+            ?.get()
+            ?.addOnSuccessListener { querySnaps ->
+                Logger.i(TAG, "updateReadStatus", "querySnap size: ${querySnaps.documents.size}", ModuleNames.FIREBASE_API.value)
 
-                firestore?.collection(FirestoreCollections.CHAT_ROOMS.collectionName)
-                    ?.document(chatRoomId)
-                    ?.set(data)
-                    ?.addOnSuccessListener {
-                        val messageData = hashMapOf(
-                            Pair(MessageDataFields.MESSAGE.fieldName, message),
-                            Pair(MessageDataFields.SENDER_ID.fieldName, senderId),
-                            Pair(MessageDataFields.TIMESTAMP.fieldName, FieldValue.serverTimestamp())
-                        )
+                if (querySnaps.size() > 0) {
+                    val readStatus = querySnaps.documents[0].data?.get(ChatRoomDataFields.READ_STATUS.fieldName) as? HashMap<String?, Boolean>
+                    readStatus?.set(userId, status)
+                    Logger.d(TAG, "updateReadStatus", "readStatus: $readStatus", ModuleNames.FIREBASE_API.value)
 
-                        firestore?.collection(FirestoreCollections.CHAT_ROOMS.collectionName)
-                            ?.document(chatRoomId)
-                            ?.collection(FirestoreCollections.MESSAGES.collectionName)
-                            ?.add(messageData)
-                            ?.addOnSuccessListener {
-                                isSuccess.invoke(true, "Message sent successfully.")
-                            }?.addOnFailureListener {
-                                isSuccess.invoke(false, "Message sending failed.")
+                    collection.document(chatRoomId)
+                        .update(ChatRoomDataFields.READ_STATUS.fieldName, readStatus)
+                        .apply {
+                            listener?.let {
+                                addOnCompleteListener(listener)
                             }
-                    }?.addOnFailureListener {
-                        isSuccess.invoke(false, "Message sending failed.")
-                    }
-            } ?: run {
-                Logger.w(TAG, "sendMessage", "user name is not available", ModuleNames.FIREBASE_API.value)
-                isSuccess.invoke(false, "User name is not available.")
+                        }
+                }
             }
-        } ?: run {
-            Logger.w(TAG, "sendMessage", "user information is not available", ModuleNames.FIREBASE_API.value)
-            isSuccess.invoke(false, "User information is not available.")
-        }
     }
 
-    fun addMessageSnapshotListener(senderId: String, receiverId: String, result: (ArrayList<MessageData>) -> Unit) {
-        val chatRoomId = arrayOf(senderId, receiverId).sortedArray().joinToString(separator = "_")
-        Logger.i(TAG, "addMessageSnapshotListener", "chatRoomId: $chatRoomId", ModuleNames.FIREBASE_API.value)
+    @Throws(Exception::class)
+    override suspend fun addChatRoomUpdateListener(userId: String, listenerName: String, listener: EventListener<QuerySnapshot?>) {
+        Logger.d(TAG, "addChatRoomUpdateListener", "userId: $userId listenerName: $listenerName", ModuleNames.FIREBASE_API.value)
 
-        val listener = firestore?.collection(FirestoreCollections.CHAT_ROOMS.collectionName)
+        val listenerRegistration = firestore?.collection(FirestoreCollections.CHAT_ROOMS.collectionName)
+            ?.whereArrayContains(ChatRoomDataFields.PARTICIPANT_ID_LIST.fieldName, userId)
+            ?.addSnapshotListener(listener)
+
+        chatRoomListenerMap[listenerName] = listenerRegistration
+    }
+
+    @Throws(Exception::class)
+    override fun removeChatRoomUpdateListener(listenerName: String) {
+        Logger.d(TAG, "removeChatRoomUpdateListener", "listenerName: $listenerName", ModuleNames.FIREBASE_API.value)
+
+        chatRoomListenerMap[listenerName]?.remove()
+        chatRoomListenerMap.remove(listenerName)
+    }
+
+    @Throws(Exception::class)
+    override suspend fun sendMessage(msgData: MessageData, listener: OnCompleteListener<DocumentReference?>) {
+        Logger.d(TAG, "sendMessage", "msgData: $msgData", ModuleNames.FIREBASE_API.value)
+
+        firestore?.collection(FirestoreCollections.CHAT_ROOMS.collectionName)
+            ?.document(msgData.chatRoomId)
+            ?.collection(FirestoreCollections.MESSAGES.collectionName)
+            ?.add(msgData)
+            ?.addOnCompleteListener(listener)
+    }
+
+    @Throws(Exception::class)
+    override suspend fun addMessageUpdateListener(chatRoomId: String, listenerName: String, listener: EventListener<QuerySnapshot?>) {
+        Logger.d(TAG, "addMessageUpdateListener", "chatRoomId: $chatRoomId listenerName: $listenerName", ModuleNames.FIREBASE_API.value)
+
+        val listenerRegistration = firestore?.collection(FirestoreCollections.CHAT_ROOMS.collectionName)
             ?.document(chatRoomId)
             ?.collection(FirestoreCollections.MESSAGES.collectionName)
             ?.orderBy(MessageDataFields.TIMESTAMP.fieldName, Direction.DESCENDING)
-            ?.addSnapshotListener { querySnapshots, _ ->
-                CoroutineScope(Dispatchers.Default).launch {
-                    updateReadStatus(chatRoomId)
-                }
+            ?.addSnapshotListener(listener)
 
-                Logger.i(TAG, "addMessageSnapshotListener", "querySnapshots: ${querySnapshots?.documentChanges?.size}", ModuleNames.FIREBASE_API.value)
-                if (querySnapshots?.documentChanges?.size == 0) {
-                    result.invoke(arrayListOf())
-                }
-
-                querySnapshots?.documentChanges?.forEach {
-                    if (it.type == DocumentChange.Type.ADDED || it.type == DocumentChange.Type.REMOVED) {
-                        val messageList = arrayListOf<MessageData>()
-                        querySnapshots.documents.distinct().forEach { ds ->
-                            val message = ds.get(MessageDataFields.MESSAGE.fieldName) as? String
-                            val msgSenderId = ds.get(MessageDataFields.SENDER_ID.fieldName) as? String
-                            val timeStamp = ds.getTimestamp(MessageDataFields.TIMESTAMP.fieldName)
-
-                            messageList.add(
-                                MessageData(
-                                    message,
-                                    if (TextUtils.equals(msgSenderId, senderId)) MessageViewHolders.SELF.value else MessageViewHolders.OTHER.value,
-                                    timeStamp
-                                )
-                            )
-                        }
-                        result.invoke(messageList)
-                    } else {
-                        Logger.w(TAG, "addMessageSnapshotListener", "querySnapshots: ${it.type}", ModuleNames.FIREBASE_API.value)
-                    }
-                } ?: run {
-                    result.invoke(arrayListOf())
-                }
-            }
-
-        messageListListenerMap[chatRoomId] = listener
+        messageListListenerMap[listenerName] = listenerRegistration
     }
 
-    fun removeMessageSnapshotListener(senderId: String, receiverId: String) {
-        val messageId = arrayOf(senderId, receiverId).sortedArray().joinToString(separator = "_")
-        Logger.i(TAG, "removeMessageSnapshotListener", "messageId: $messageId", ModuleNames.FIREBASE_API.value)
+    @Throws(Exception::class)
+    override fun removeMessageUpdateListener(listenerName: String) {
+        Logger.d(TAG, "removeMessageUpdateListener", "listenerName: $listenerName", ModuleNames.FIREBASE_API.value)
 
-        messageListListenerMap[messageId]?.remove()
-        messageListListenerMap.remove(messageId)
-    }
-
-    fun addChatRoomListener(currentUserId: String, result: (ArrayList<ChatRoomData>) -> Unit) {
-        Logger.i(TAG, "addChatRoomListener", "currentUserId: $currentUserId", ModuleNames.FIREBASE_API.value)
-
-        val listener = firestore?.collection(FirestoreCollections.CHAT_ROOMS.collectionName)
-            ?.whereArrayContains(ChatRoomDataFields.PARTICIPANT_LIST.fieldName, currentUserId)
-            ?.orderBy(ChatRoomDataFields.TIMESTAMP.fieldName)
-            ?.addSnapshotListener { querySnapshot, _ ->
-                Logger.i(TAG, "addChatRoomListener", "querySnapshot: ${querySnapshot?.documentChanges?.size}", ModuleNames.FIREBASE_API.value)
-                if (querySnapshot?.documentChanges?.size == 0) {
-                    result.invoke(arrayListOf())
-                }
-
-                querySnapshot?.documentChanges?.forEach {
-                    Logger.i(TAG, "addChatRoomListener", "querySnapshots: ${it.type}", ModuleNames.FIREBASE_API.value)
-                    val chatRooms = arrayListOf<ChatRoomData>()
-
-                    querySnapshot.documents.forEach { ds ->
-                        val participantsList = ds.get(ChatRoomDataFields.PARTICIPANT_LIST.fieldName) as? ArrayList<*>
-                        val lastMessage = ds.get(ChatRoomDataFields.LAST_MESSAGE.fieldName) as? String
-                        val lastMessageSender = ds.get(ChatRoomDataFields.LAST_MESSAGE_SENDER.fieldName) as? String
-                        val lastMessageTime = ds.getTimestamp(ChatRoomDataFields.TIMESTAMP.fieldName)
-                        val participantNames = ds.get(ChatRoomDataFields.PARTICIPANT_NAMES.fieldName) as? ArrayList<*>
-                        val readStatus = ds.get(ChatRoomDataFields.READ_STATUS.fieldName) as? Boolean
-
-                        val chatRoom = ChatRoomData(
-                            participantsList,
-                            lastMessage,
-                            lastMessageSender,
-                            lastMessageTime,
-                            participantNames,
-                            readStatus ?: false
-                        )
-                        Logger.d(TAG, "addChatRoomListener", "chatRoom: $chatRoom", ModuleNames.FIREBASE_API.value)
-                        chatRooms.add(chatRoom)
-                    }
-
-                    result.invoke(chatRooms)
-                }
-            }
-
-        chatRoomListenerMap[currentUserId] = listener
-    }
-
-    fun removeChatRoomListener(currentUserId: String) {
-        chatRoomListenerMap[currentUserId]?.remove()
-        chatRoomListenerMap.remove(currentUserId)
+        messageListListenerMap[listenerName]?.remove()
+        messageListListenerMap.remove(listenerName)
     }
 
     companion object {
         private const val TAG = "FirebaseFirestoreHelper"
+
         private var helper: FirebaseFirestoreHelper? = null
         private val lock = Any()
 
         @Synchronized
-        fun getInstance(): FirebaseFirestoreHelper? {
+        fun getInstance(): FirebaseFirestoreApi {
             synchronized(lock) {
                 return helper ?: synchronized(lock) {
-                    helper = FirebaseFirestoreHelper()
-                    helper?.initialize()
-                    return helper
+                    Logger.i(TAG, "getInstance", "instance is null, creating a new instance", ModuleNames.FIREBASE_API.value)
+
+                    FirebaseFirestoreHelper().also {
+                        Logger.i(TAG, "getInstance", "setting up the created instance", ModuleNames.FIREBASE_API.value)
+                        helper = it
+                    }
                 }
             }
         }

@@ -8,16 +8,9 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 class RetrofitClient(baseUrl: String) {
-    private val gson = GsonBuilder()
-        .setLenient()
-        .create()
-
-    private val interceptor = HttpLoggingInterceptor()
-        .setLevel(HttpLoggingInterceptor.Level.BODY)
-
-    private val client = OkHttpClient.Builder()
-        .addInterceptor(interceptor)
-        .build()
+    private val gson = GsonBuilder().setLenient().create()
+    private val interceptor = HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY)
+    private val client = OkHttpClient.Builder().addInterceptor(interceptor).build()
 
     private val retrofit = Retrofit.Builder()
         .baseUrl(baseUrl)

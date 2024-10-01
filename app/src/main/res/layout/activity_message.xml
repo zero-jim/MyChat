@@ -5,11 +5,11 @@
 
     <data>
 
-        <import type="com.exoleviathan.mychat.message.viewmodel.MessageViewModel" />
+        <import type="com.exoleviathan.mychat.message.ui.MessageViewModel" />
 
         <variable
             name="viewModel"
-            type="MessageViewModel" />
+            type="com.exoleviathan.mychat.message.ui.MessageViewModel" />
 
     </data>
 
@@ -58,6 +58,7 @@
                 android:hint="@string/enter_message"
                 android:importantForAutofill="no"
                 android:inputType="text"
+                android:text="@={viewModel.message}"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toStartOf="@id/send_button"
                 app:layout_constraintStart_toStartOf="parent"

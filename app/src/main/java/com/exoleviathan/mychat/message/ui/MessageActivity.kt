@@ -2,17 +2,17 @@ package com.exoleviathan.mychat.message.ui
 
 import android.content.Intent
 import android.os.Bundle
-import android.text.TextUtils
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.widget.addTextChangedListener
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.exoleviathan.mychat.MainActivity
 import com.exoleviathan.mychat.databinding.ActivityMessageBinding
-import com.exoleviathan.mychat.firebase.auth.FirebaseAuthenticationHelper
-import com.exoleviathan.mychat.message.viewmodel.MessageViewModel
+import com.exoleviathan.mychat.firebase.auth.FirebaseAuthHelper
+import com.exoleviathan.mychat.message.model.MessageIntent
+import com.exoleviathan.mychat.message.model.MessageState
 import com.exoleviathan.mychat.utility.Logger
 import com.exoleviathan.mychat.utility.MESSAGE_RECEIVER_NAME
 import com.exoleviathan.mychat.utility.MESSAGE_RECEIVER_UID
@@ -20,21 +20,27 @@ import com.exoleviathan.mychat.utility.ModuleNames
 import com.exoleviathan.mychat.utility.NavigationHelper
 import com.exoleviathan.mychat.utility.hideKeyboard
 import com.exoleviathan.mychat.utility.showKeyboard
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 class MessageActivity : AppCompatActivity() {
+    private lateinit var receiverId: String
+    private lateinit var receiverName: String
+
     private lateinit var binding: ActivityMessageBinding
     private lateinit var viewModel: MessageViewModel
-    private lateinit var receiverUid: String
-    private lateinit var receiverName: String
+
+    private lateinit var messageAdapter: MessageAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Logger.d(TAG, "onCreate", moduleName = ModuleNames.MESSAGE.value)
 
         viewModel = ViewModelProvider(this)[MessageViewModel::class.java]
+
         binding = ActivityMessageBinding.inflate(layoutInflater)
-        binding.viewModel = viewModel
         binding.lifecycleOwner = this
+        binding.viewModel = viewModel
         setContentView(binding.root)
 
         getIntentDataAndSetUpSupportActionBar()
@@ -43,7 +49,7 @@ class MessageActivity : AppCompatActivity() {
     private fun getIntentDataAndSetUpSupportActionBar() {
         Logger.d(TAG, "getIntentDataAndSetUpSupportActionBar", moduleName = ModuleNames.MESSAGE.value)
 
-        receiverUid = intent.getStringExtra(MESSAGE_RECEIVER_UID) ?: ""
+        receiverId = intent.getStringExtra(MESSAGE_RECEIVER_UID) ?: ""
         receiverName = intent.getStringExtra(MESSAGE_RECEIVER_NAME) ?: "Unknown User"
 
         title = receiverName
@@ -54,46 +60,93 @@ class MessageActivity : AppCompatActivity() {
         super.onStart()
         Logger.d(TAG, "onStart", moduleName = ModuleNames.MESSAGE.value)
 
-        binding.messageRecyclerView.adapter = MessageAdapter(viewModel)
+        messageAdapter = MessageAdapter(viewModel)
+        binding.messageRecyclerView.adapter = messageAdapter
 
         val layoutManager = LinearLayoutManager(this)
         layoutManager.reverseLayout = true
         binding.messageRecyclerView.layoutManager = layoutManager
 
-        isSendButtonEnabled(false)
+        sendButtonClickAction()
+        handleMessageStates()
+    }
 
-        binding.messageTextField.addTextChangedListener {
-            if (TextUtils.isEmpty(it?.trim())) {
-                Logger.i(TAG, "onStart", "editTextField is empty", ModuleNames.MESSAGE.value)
-                isSendButtonEnabled(false)
-            } else {
-                Logger.i(TAG, "onStart", "editTextField is not empty", ModuleNames.MESSAGE.value)
-                isSendButtonEnabled(true)
-            }
-        }
+    private fun sendButtonClickAction() {
+        Logger.d(TAG, "sendButtonClickAction", moduleName = ModuleNames.MESSAGE.value)
 
         binding.sendButton.setOnClickListener {
-            isSendButtonEnabled(false)
+            Logger.i(TAG, "sendButtonClickAction", "sendButton click event", ModuleNames.MESSAGE.value)
 
-            viewModel.sendMessage(this, receiverUid, receiverName, binding.messageTextField.text.toString()) { isSuccess, message ->
-                if (isSuccess) {
-                    binding.messageTextField.text.clear()
-                    hideKeyboard(this)
-                } else {
-                    Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-                }
-                isSendButtonEnabled(true)
+            isSendButtonEnabled(false)
+            binding.messageTextField.clearFocus()
+            hideKeyboard(this)
+
+            lifecycleScope.launch {
+                viewModel.messageIntent.send(MessageIntent.SendMessage(this@MessageActivity, receiverId, receiverName))
             }
         }
     }
 
-    private fun showProgress(isShown: Boolean) {
-        if (isShown) {
-            binding.progressBar.visibility = View.VISIBLE
-            binding.messageRecyclerView.visibility = View.GONE
-        } else {
-            binding.progressBar.visibility = View.GONE
-            binding.messageRecyclerView.visibility = View.VISIBLE
+    private fun handleMessageStates() {
+        Logger.d(TAG, "handleMessageStates", moduleName = ModuleNames.MESSAGE.value)
+
+        lifecycleScope.launch {
+
+            viewModel.messageState.asStateFlow().collect { state ->
+                Logger.i(TAG, "handleMessageStates", "state: $state", ModuleNames.MESSAGE.value)
+
+                when (state) {
+                    is MessageState.FailedToLoadUserInformation -> {
+                        Toast.makeText(this@MessageActivity, state.message, Toast.LENGTH_SHORT).show()
+
+                        FirebaseAuthHelper.getInstance().signOutUser()
+
+                        val intent = Intent(this@MessageActivity, MainActivity::class.java)
+                        NavigationHelper.navigateToActivity(this@MessageActivity, intent)
+                        finish()
+                    }
+
+                    MessageState.Initial -> {
+                        Logger.i(TAG, "handleMessageStates", "initial state is loaded", ModuleNames.MESSAGE.value)
+                        showProgress(true)
+
+                        binding.messageTextField.requestFocus()
+                        showKeyboard(this@MessageActivity)
+                    }
+
+                    is MessageState.IsSendButtonEnabled -> {
+                        Logger.i(TAG, "handleMessageStates", "isSendButtonEnabled: ${state.isEnabled}", ModuleNames.MESSAGE.value)
+                        isSendButtonEnabled(state.isEnabled)
+                    }
+
+                    is MessageState.MessageListUpdated -> {
+                        Logger.i(TAG, "handleMessageStates", "messageList size: ${state.messageList.size}", ModuleNames.MESSAGE.value)
+                        messageAdapter.updateDataItems(state.messageList)
+
+                        showProgress(false)
+                        scrollToFirstPosition()
+                    }
+
+                    is MessageState.SendMessageStatus -> {
+                        if (state.isSuccessful.not()) {
+                            Toast.makeText(this@MessageActivity, "Failed to send message to $receiverName.", Toast.LENGTH_SHORT).show()
+                        }
+                        binding.messageTextField.text = null
+                    }
+
+                    is MessageState.SetChatRoomDataStatus -> {
+                        if (state.isSuccessful.not()) {
+                            Toast.makeText(this@MessageActivity, "Failed to update chat room for $receiverName", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+
+                    is MessageState.SendNotificationStatus -> {
+                        if (state.isSuccessful.not()) {
+                            Toast.makeText(this@MessageActivity, "Failed to send notification to $receiverName", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -107,35 +160,22 @@ class MessageActivity : AppCompatActivity() {
         }
     }
 
-    @Suppress("DEPRECATION")
-    override fun onSupportNavigateUp(): Boolean {
-        Logger.d(TAG, "onSupportNavigationUp", moduleName = ModuleNames.MESSAGE.value)
-        super.onBackPressed()
-
-        return true
+    private fun showProgress(isShown: Boolean) {
+        if (isShown) {
+            binding.progressBar.visibility = View.VISIBLE
+            binding.messageRecyclerView.visibility = View.GONE
+        } else {
+            binding.progressBar.visibility = View.GONE
+            binding.messageRecyclerView.visibility = View.VISIBLE
+        }
     }
 
     override fun onResume() {
         super.onResume()
         Logger.d(TAG, "onResume", moduleName = ModuleNames.MESSAGE.value)
 
-        val data = FirebaseAuthenticationHelper.getInstance()?.getUserInformation()
-        if (data == null) {
-            FirebaseAuthenticationHelper.getInstance()?.signOutUser()
-
-            val intent = Intent(this, MainActivity::class.java)
-            NavigationHelper.navigateToActivity(this, intent)
-            finish()
-        }
-
-        showProgress(true)
-
-        binding.messageTextField.requestFocus()
-        showKeyboard(this)
-
-        viewModel.addMessageSnapshotListener(receiverUid) {
-            scrollToFirstPosition()
-            showProgress(false)
+        lifecycleScope.launch {
+            viewModel.messageIntent.send(MessageIntent.AddMessageUpdateListener(receiverId))
         }
     }
 
@@ -149,7 +189,24 @@ class MessageActivity : AppCompatActivity() {
         super.onPause()
         Logger.d(TAG, "onPause", moduleName = ModuleNames.MESSAGE.value)
 
-        viewModel.removeMessageSnapshotListener(receiverUid)
+        lifecycleScope.launch {
+            viewModel.messageIntent.send(MessageIntent.RemoveMessageUpdateListener)
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Logger.d(TAG, "onDestroy", moduleName = ModuleNames.MESSAGE.value)
+
+        viewModel.deInit()
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onSupportNavigateUp(): Boolean {
+        Logger.d(TAG, "onSupportNavigationUp", moduleName = ModuleNames.MESSAGE.value)
+        super.onBackPressed()
+
+        return true
     }
 
     companion object {
